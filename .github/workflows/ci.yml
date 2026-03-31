@@ -1,0 +1,247 @@
+# Copyright 2026 Sunghun Park (박성훈) <suhopark1@gmail.com>
+# Licensed under the Apache License, Version 2.0
+#
+# HAchilles CI Pipeline
+# Runs on every push to main/develop and every PR targeting main.
+# Target: complete in under 10 minutes.
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ── 1. Lint ──────────────────────────────────────────────────────────────
+  lint:
+    name: Lint (ruff + format)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff lint
+        run: ruff check src/ tests/
+
+      - name: Run ruff format check
+        run: ruff format --check src/ tests/
+
+  # ── 2. License Header Check ──────────────────────────────────────────────
+  license-check:
+    name: License Header Check (Apache 2.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Apache 2.0 headers in source files
+        run: |
+          missing=()
+          while IFS= read -r -d '' f; do
+            if ! grep -q "Apache License" "$f"; then
+              missing+=("$f")
+            fi
+          done < <(find src/hachilles -name "*.py" -not -path "*/__pycache__/*" -print0)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "ERROR: Missing Apache 2.0 license headers in:"
+            printf '  %s\n' "${missing[@]}"
+            exit 1
+          fi
+          echo "All Python source files have Apache 2.0 license headers ✓"
+
+  # ── 3. Test Matrix ───────────────────────────────────────────────────────
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      - name: Install dependencies (dev + web)
+        run: pip install -e ".[dev,web]"
+
+      - name: Run full test suite
+        run: pytest tests/ -v --tb=short
+
+  # ── 4. Type Check ────────────────────────────────────────────────────────
+  typecheck:
+    name: Type Check (mypy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,web]"
+
+      - name: Run mypy
+        run: mypy src/hachilles/ --ignore-missing-imports
+
+  # ── 5. Web Build ─────────────────────────────────────────────────────────
+  web-build:
+    name: Web Build (React + TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: src/hachilles/web/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: src/hachilles/web
+        run: npm ci --prefer-offline 2>/dev/null || npm install
+
+      - name: TypeScript type check + Vite build
+        working-directory: src/hachilles/web
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          test -f src/hachilles/web/dist/index.html && echo "index.html ✓"
+          test -d src/hachilles/web/dist/assets && echo "assets/ ✓"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: src/hachilles/web/dist/
+          retention-days: 7
+
+  # ── 6. HAchilles Self-Audit (meta-gate) ──────────────────────────────────
+  hachilles-self-audit:
+    name: HAchilles Self-Audit (must be S-Grade ≥ 90)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install HAchilles
+        run: pip install -e ".[web]"
+
+      - name: Run self-audit
+        run: |
+          SCORE=$(hachilles scan . --json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total_score', 0))")
+          echo "Self-audit score: $SCORE"
+          if [ "$SCORE" -lt 90 ]; then
+            echo "ERROR: Self-audit score $SCORE < 90 (S-Grade required for release)"
+            exit 1
+          fi
+          echo "Self-audit PASSED: $SCORE pts (S-Grade) ✓"
+
+  # ── 7. API Smoke Test ─────────────────────────────────────────────────────
+  api-smoke-test:
+    name: API Smoke Test (FastAPI routes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install HAchilles (web)
+        run: pip install -e ".[web]"
+
+      - name: Verify API route registration
+        run: |
+          python3 -c "
+          from hachilles.api import create_app
+          app = create_app()
+          routes = {r.path for r in app.routes}
+          required = {'/api/health', '/api/v1/scan', '/api/v1/history', '/api/v1/compare', '/api/v1/generate-agents'}
+          missing = required - routes
+          if missing:
+              print(f'Missing routes: {missing}')
+              exit(1)
+          print('All API routes registered:', sorted(required))
+          print('API smoke test PASSED ✓')
+          "
+
+  # ── 8. Publish to PyPI (on version tags) ─────────────────────────────────
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [lint, license-check, test, typecheck, web-build, hachilles-self-audit, api-smoke-test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: pypi
+    permissions:
+      id-token: write  # For PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js (for web build inclusion)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build React web UI
+        working-directory: src/hachilles/web
+        run: npm ci --prefer-offline 2>/dev/null || npm install && npm run build
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Verify package
+        run: twine check dist/*
+
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1

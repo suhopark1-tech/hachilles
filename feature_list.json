@@ -1,0 +1,158 @@
+{
+  "version": "3.0.0",
+  "product": "HAchilles",
+  "description": "AI 에이전트 하네스 진단·최적화 플랫폼 — CLI + REST API + React SPA",
+  "completion_criteria": "모든 15개 진단 항목 구현 + CLI/API/웹 UI 동작 + 자가 진단 100점 S등급",
+  "features": [
+    {
+      "id": "scan",
+      "name": "프로젝트 스캔 (Scanner)",
+      "description": "대상 프로젝트 파일 시스템을 탐색하여 ScanResult 수집",
+      "status": "implemented",
+      "phase": 1,
+      "test_count": 60
+    },
+    {
+      "id": "audit-ce",
+      "name": "Context Engineering 진단 (CE-01~06)",
+      "description": "AGENTS.md, docs 구조, 세션 브릿지, feature_list, 아키텍처 문서 연결 검사",
+      "status": "implemented",
+      "phase": 1,
+      "test_count": 45,
+      "max_score": 40
+    },
+    {
+      "id": "audit-ac",
+      "name": "Architectural Constraint 진단 (AC-01~06)",
+      "description": "린터, pre-commit, CI, forbidden.md, 의존성 방향 위반 검사",
+      "status": "implemented",
+      "phase": 1,
+      "test_count": 40,
+      "max_score": 35
+    },
+    {
+      "id": "audit-em",
+      "name": "Entropy Management 진단 (EM-01~03)",
+      "description": "문서 최신성, AGENTS.md 참조 유효성, GC 에이전트, lint suppress 비율 검사",
+      "status": "implemented",
+      "phase": 1,
+      "test_count": 40,
+      "max_score": 25
+    },
+    {
+      "id": "score",
+      "name": "HAchilles Score 산출 (ScoreEngine)",
+      "description": "세 Auditor 결과를 종합하여 0~100점 및 S/A/B/C/D 등급 산출, 5대 실패 패턴 진단",
+      "status": "implemented",
+      "phase": 1,
+      "test_count": 93,
+      "max_score": 100
+    },
+    {
+      "id": "prescriptions",
+      "name": "처방 엔진 (Prescriptions)",
+      "description": "실패 항목별 맥락 특화 처방 생성, 단계별 개선 가이드, 우선순위 정렬",
+      "status": "implemented",
+      "phase": 1,
+      "test_count": 25
+    },
+    {
+      "id": "report",
+      "name": "HTML 리포트 생성 (ReportGenerator)",
+      "description": "HarnessScore를 바탕으로 SVG 게이지·다크 테마 자기완결 HTML 진단 보고서 생성",
+      "status": "implemented",
+      "phase": 1,
+      "test_count": 10
+    },
+    {
+      "id": "cli",
+      "name": "CLI 인터페이스",
+      "description": "터미널 컬러 출력, --json/--html/--llm/--save-history 플래그, serve/history/generate-agents 서브커맨드",
+      "status": "implemented",
+      "phase": 1,
+      "test_count": 20
+    },
+    {
+      "id": "gc-agent",
+      "name": "GC 에이전트 (gc_agent.py)",
+      "description": "오래된 스캔 캐시 및 임시 리포트 주기적 정리",
+      "status": "implemented",
+      "phase": 1,
+      "test_count": 5
+    },
+    {
+      "id": "ast-analysis",
+      "name": "AST 의존성 분석 (Phase 2)",
+      "description": "소스 코드 AST 파싱으로 레이어 위반·순환 의존성 자동 탐지 (AC-05)",
+      "status": "implemented",
+      "phase": 2,
+      "test_count": 30
+    },
+    {
+      "id": "llm-analysis",
+      "name": "LLM Over-engineering 분석 (Phase 2)",
+      "description": "Claude/GPT 기반 Over-engineering 패턴 AI 평가 (--llm 플래그, 선택적 기능)",
+      "status": "implemented",
+      "phase": 2,
+      "test_count": 15
+    },
+    {
+      "id": "history",
+      "name": "진단 이력 추적 (Phase 2)",
+      "description": "SQLite 기반 진단 이력 저장 및 트렌드 분석 (--save-history, hachilles history)",
+      "status": "implemented",
+      "phase": 2,
+      "test_count": 20
+    },
+    {
+      "id": "rest-api",
+      "name": "REST API (Phase 3)",
+      "description": "FastAPI 기반 5개 엔드포인트: /api/health, /api/v1/scan, /api/v1/history, /api/v1/generate-agents",
+      "status": "implemented",
+      "phase": 3,
+      "test_count": 14
+    },
+    {
+      "id": "web-ui",
+      "name": "React 웹 UI (Phase 3)",
+      "description": "React + TypeScript + Vite SPA. hachilles serve로 실행, FastAPI가 정적 파일 서빙",
+      "status": "implemented",
+      "phase": 3,
+      "test_count": 0
+    },
+    {
+      "id": "typescript-analysis",
+      "name": "TypeScript 심층 분석 (Phase 3)",
+      "description": "ESLint 설정·tsconfig strict·paths 별칭·테스트 파일·vitest 6개 필드 감지",
+      "status": "implemented",
+      "phase": 3,
+      "test_count": 13
+    },
+    {
+      "id": "plugins",
+      "name": "플러그인 시스템 (Phase 3)",
+      "description": "커스텀 Auditor 확장 API — BaseAuditorPlugin 상속으로 새 진단 항목 추가 가능",
+      "status": "implemented",
+      "phase": 3,
+      "test_count": 16
+    },
+    {
+      "id": "generate-agents",
+      "name": "AGENTS.md 자동 생성 (Phase 3)",
+      "description": "프로젝트 스캔 결과 기반 맞춤형 AGENTS.md 템플릿 자동 생성",
+      "status": "implemented",
+      "phase": 3,
+      "test_count": 5
+    }
+  ],
+  "done_definition": [
+    "575개 이상 테스트 전부 통과",
+    "HAchilles 자가 진단 100점 S등급 달성",
+    "CLI hachilles scan/serve/history/generate-agents 모든 커맨드 동작",
+    "HTML 리포트 생성 완료",
+    "FastAPI REST API 5개 엔드포인트 정상 동작",
+    "React SPA 빌드 완료 및 FastAPI 서빙 확인",
+    "TypeScript 6개 심층 분석 필드 완전 노출",
+    "Phase 1/2/3 통합 테스트 35개 전부 통과"
+  ]
+}

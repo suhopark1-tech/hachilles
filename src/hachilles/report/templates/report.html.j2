@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HAchilles 진단 리포트 — {{ project_name }}</title>
+<style>
+  :root {
+    --bg:#0f172a; --card:#1e293b; --border:#334155;
+    --text:#e2e8f0; --dim:#94a3b8; --accent:#3b82f6;
+  }
+  * { box-sizing:border-box; margin:0; padding:0 }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+         background:var(--bg);color:var(--text);padding:24px;line-height:1.6 }
+  .container { max-width:1000px; margin:0 auto }
+  h1 { font-size:1.6rem; font-weight:800; margin-bottom:4px }
+  .subtitle { color:var(--dim); font-size:.875rem; margin-bottom:24px }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px;
+          padding:20px; margin-bottom:20px }
+  .card-title { font-size:.8rem; font-weight:700; color:var(--dim); text-transform:uppercase;
+                letter-spacing:.08em; margin-bottom:16px }
+  /* Hero */
+  .hero { display:flex; align-items:center; gap:32px }
+  .gauge circle { fill:none; stroke-width:8 }
+  .gauge .track { stroke:#334155 }
+  .gauge .fill { stroke:{{ grade_color }}; stroke-linecap:round; stroke-dasharray:283;
+                 stroke-dashoffset:{{ arc }}; transform:rotate(-90deg);
+                 transform-origin:50% 50%; transition:stroke-dashoffset 1.2s ease }
+  .score-num { font-size:2.5rem; font-weight:800; fill:{{ grade_color }};
+               text-anchor:middle; dominant-baseline:central }
+  .grade-badge { display:inline-block; padding:4px 18px; border-radius:20px;
+                 font-size:1.2rem; font-weight:800; color:#fff;
+                 background:{{ grade_color }}; margin-bottom:8px }
+  .grade-label { color:var(--dim); font-size:.875rem }
+  .meta-pills { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px }
+  .pill { background:#1e3a5f; color:#93c5fd; padding:3px 10px; border-radius:12px;
+          font-size:.75rem; font-weight:600 }
+  /* Pillars */
+  .pillar-row { display:flex; align-items:center; gap:12px; margin-bottom:12px }
+  .pillar-name { width:170px; flex-shrink:0; font-size:.875rem }
+  .bar-wrap { flex:1; background:#334155; border-radius:4px; height:12px; overflow:hidden }
+  .bar { height:100%; border-radius:4px; transition:width 1s ease }
+  .pillar-score { width:65px; text-align:right; font-size:.875rem; font-weight:600 }
+  /* Table */
+  table { width:100%; border-collapse:collapse; font-size:.875rem }
+  th { text-align:left; padding:8px 12px; color:var(--dim); border-bottom:1px solid var(--border);
+       font-weight:600; font-size:.8rem }
+  td { padding:8px 12px; border-bottom:1px solid var(--border) }
+  tr:last-child td { border-bottom:none }
+  tr.fail td { background:rgba(239,68,68,.05) }
+  tr:hover td { background:rgba(255,255,255,.03) }
+  .code { font-family:'Fira Code',monospace; color:var(--accent); font-weight:700 }
+  .center { text-align:center }
+  .detail { color:var(--dim); font-size:.8rem; max-width:340px }
+  .dim { color:var(--dim) }
+  .icon-pass { color:#10b981; font-size:1rem; font-weight:700 }
+  .icon-fail { color:#ef4444; font-size:1rem; font-weight:700 }
+  /* Risk badge */
+  .badge { display:inline-block; padding:2px 9px; border-radius:4px; font-size:.72rem;
+           font-weight:700; color:#fff }
+  .badge-ok       { background:#10b981 }
+  .badge-low      { background:#f59e0b }
+  .badge-medium   { background:#f97316 }
+  .badge-high     { background:#ef4444 }
+  .badge-critical { background:#dc2626 }
+  /* Phase 2 — AST 섹션 */
+  .ast-ok { color:#10b981; font-weight:600 }
+  .ast-warn { color:#f59e0b; font-weight:600 }
+  /* Prescriptions */
+  .rx-card { border-left:3px solid var(--accent); padding:16px; margin-bottom:14px;
+             background:rgba(59,130,246,.05); border-radius:0 8px 8px 0 }
+  .rx-header { display:flex; align-items:center; gap:10px; margin-bottom:10px }
+  .rx-code { font-family:monospace; font-size:.875rem; color:var(--accent); font-weight:700 }
+  .rx-title { font-weight:600; flex:1 }
+  .rx-impact { background:#10b981; color:#fff; padding:2px 9px; border-radius:12px;
+               font-size:.75rem; font-weight:700 }
+  .rx-steps { padding-left:20px; color:var(--dim); font-size:.875rem }
+  .rx-steps li { margin-bottom:4px }
+  .snippet { background:#0f172a; border:1px solid var(--border); border-radius:6px;
+             padding:12px; margin-top:10px; overflow-x:auto }
+  code { font-family:'Fira Code',monospace; font-size:.8rem; color:#93c5fd }
+  .ref { font-size:.75rem; color:var(--dim); margin-top:8px }
+  .no-rx { color:#10b981; font-weight:600; padding:8px 0 }
+  /* Footer */
+  .footer { text-align:center; color:var(--dim); font-size:.75rem; margin-top:32px;
+            padding-top:16px; border-top:1px solid var(--border) }
+  /* Two-col grid */
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px }
+  @media(max-width:680px){ .grid-2{grid-template-columns:1fr} .hero{flex-direction:column;text-align:center} }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 헤더 -->
+  <h1>⚙️ HAchilles 진단 리포트</h1>
+  <p class="subtitle">대상: {{ target_path }} &nbsp;·&nbsp; 생성: {{ generated_at }}{% if scan_timestamp %} &nbsp;·&nbsp; 스캔: {{ scan_timestamp[:19] }} UTC{% endif %}</p>
+
+  <!-- 종합 점수 -->
+  <div class="card">
+    <div class="hero">
+      <div class="gauge">
+        <svg width="120" height="120" viewBox="0 0 100 100">
+          <circle class="track" cx="50" cy="50" r="45"/>
+          <circle class="fill"  cx="50" cy="50" r="45"/>
+          <text class="score-num" x="50" y="50">{{ total }}</text>
+        </svg>
+      </div>
+      <div>
+        <div class="grade-badge">{{ grade }}등급</div>
+        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">{{ grade_label }}</div>
+        <div class="grade-label">통과율 {{ "%.0f"|format(passed_rate*100) }}% &nbsp;|&nbsp; 회복 가능 <b>+{{ total_recoverable }}점</b></div>
+        <div class="meta-pills" style="margin-top:10px">
+          {% for stack in tech_stack %}<span class="pill">{{ stack }}</span>{% endfor %}
+          {% if scan_timestamp %}<span class="pill">🕐 {{ scan_timestamp[:10] }}</span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 기둥별 점수 + AST 요약 -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">기둥별 점수</div>
+      {% for pillar in pillars %}
+      <div class="pillar-row">
+        <span class="pillar-name">{{ pillar.name }}</span>
+        <div class="bar-wrap">
+          <div class="bar" style="width:{{ pillar.pct }}%;background:{{ pillar.color }}"></div>
+        </div>
+        <span class="pillar-score">{{ pillar.score }}<span class="dim">/{{ pillar.full_score }}</span></span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 2 분석 요약</div>
+      <table>
+        <tr>
+          <td>AST 순환 의존성</td>
+          <td class="center">
+            {% if dependency_cycles|length == 0 %}
+              <span class="ast-ok">0건 ✓</span>
+            {% else %}
+              <span class="ast-warn">{{ dependency_cycles|length }}건 ⚠</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>레이어 위반</td>
+          <td class="center">
+            {% if layer_violations|length == 0 %}
+              <span class="ast-ok">0건 ✓</span>
+            {% else %}
+              <span class="ast-warn">{{ layer_violations|length }}건 ⚠</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>Over-engineering</td>
+          <td class="center">
+            {% if llm_score == 0.0 and not llm_evidence %}
+              <span class="dim">미분석</span>
+            {% else %}
+              <span class="{{ 'ast-warn' if llm_score >= 0.4 else 'ast-ok' }}">{{ "%.0f"|format(llm_score*100) }}%</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>Go 모듈</td>
+          <td class="center">{{ go_module_name if go_module_name else '<span class="dim">-</span>' }}</td>
+        </tr>
+        <tr>
+          <td>Java 빌드 도구</td>
+          <td class="center">{{ java_build_tool if java_build_tool else '<span class="dim">-</span>' }}</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 세부 진단 항목 -->
+  <div class="card">
+    <div class="card-title">세부 진단 항목 (15개)</div>
+    <table>
+      <thead>
+        <tr><th>코드</th><th>항목</th><th>결과</th><th>점수</th><th>상세</th></tr>
+      </thead>
+      <tbody>
+        {% for item in audit_items %}
+        <tr class="{{ 'fail' if not item.passed else '' }}">
+          <td class="code">{{ item.code }}</td>
+          <td>{{ item.name }}</td>
+          <td class="center">
+            {% if item.passed %}
+              <span class="icon-pass">✓</span>
+            {% else %}
+              <span class="icon-fail">✗</span>
+            {% endif %}
+          </td>
+          <td class="center">{{ item.score }}<span class="dim">/{{ item.full_score }}</span></td>
+          <td class="detail">{{ item.detail }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 5대 실패 패턴 위험도 -->
+  <div class="card">
+    <div class="card-title">5대 실패 패턴 위험도</div>
+    <table>
+      <thead><tr><th>패턴</th><th>위험도</th><th>요약</th><th>주요 근거</th></tr></thead>
+      <tbody>
+        {% for pr in pattern_risks %}
+        <tr>
+          <td style="font-weight:600">{{ pr.pattern }}</td>
+          <td class="center">
+            <span class="badge badge-{{ pr.risk }}">{{ pr.risk|upper }}</span>
+          </td>
+          <td>{{ pr.summary }}</td>
+          <td class="detail">{{ pr.evidence[0] if pr.evidence else '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 처방 -->
+  <div class="card">
+    <div class="card-title">처방 ({{ prescriptions|length }}건 · 회복 가능 +{{ total_recoverable }}점)</div>
+    {% if prescriptions %}
+      {% for p in prescriptions %}
+      <div class="rx-card">
+        <div class="rx-header">
+          <span class="rx-code">{{ p.code }}</span>
+          <span class="rx-title">{{ p.title }}</span>
+          <span class="rx-impact">+{{ p.impact }}점</span>
+        </div>
+        <ol class="rx-steps">
+          {% for step in p.steps %}<li>{{ step }}</li>{% endfor %}
+        </ol>
+        {% if p.snippet %}<pre class="snippet"><code>{{ p.snippet }}</code></pre>{% endif %}
+        {% if p.reference %}<p class="ref">참고: {{ p.reference }}</p>{% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="no-rx">✓ 모든 항목 통과 — 처방 없음</p>
+    {% endif %}
+  </div>
+
+  <!-- 스캔 오류 (있을 경우만) -->
+  {% if scan_errors %}
+  <div class="card" style="border-color:#f59e0b">
+    <div class="card-title" style="color:#f59e0b">스캔 경고 ({{ scan_errors|length }}건)</div>
+    <ul style="padding-left:20px;color:var(--dim);font-size:.875rem">
+      {% for err in scan_errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    HAchilles v{{ version }} &nbsp;·&nbsp; 실전 하네스 엔지니어링 by 박성훈 &nbsp;·&nbsp; {{ generated_at }}
+  </div>
+</div>
+</body>
+</html>

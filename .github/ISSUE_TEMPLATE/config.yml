@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & Discussions (Q&A / 질문)
+    url: https://github.com/suhopark1/hachilles/discussions
+    about: Ask questions or discuss harness engineering topics
+  - name: Security Vulnerabilities
+    url: mailto:suhopark1@gmail.com
+    about: Report security issues privately (do not open a public issue)

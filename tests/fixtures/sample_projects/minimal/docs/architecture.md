@@ -1,0 +1,2 @@
+# Architecture
+Minimal test fixture.

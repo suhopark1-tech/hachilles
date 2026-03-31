@@ -1,0 +1,41 @@
+HAchilles
+Copyright 2026 Park Sung Hoon (박성훈) <suhopark1@gmail.com>
+
+This product is licensed under the Apache License, Version 2.0.
+You may obtain a copy of the License at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+---
+
+HAchilles — AI Agent Harness Quality Measurement Platform
+
+Created by Sunghun Park (박성훈), author of
+"Practical Harness Engineering" (실전 하네스 엔지니어링).
+
+Official tool for measuring harness engineering quality of AI agent codebases
+using the CE · AC · EM three-pillar framework (0–100 points, S/A/B/C/D grades).
+
+---
+
+Third-Party Dependencies
+------------------------
+
+This software includes the following open-source components,
+each of which is governed by its own license terms:
+
+  click           — BSD License       https://github.com/pallets/click
+  rich            — MIT License       https://github.com/Textualize/rich
+  jinja2          — BSD License       https://github.com/pallets/jinja
+  gitpython       — BSD License       https://github.com/gitpython-developers/GitPython
+  pathspec        — Mozilla Public 2  https://github.com/cpburnz/python-pathspec
+  fastapi         — MIT License       https://github.com/tiangolo/fastapi
+  uvicorn         — BSD License       https://github.com/encode/uvicorn
+  anthropic       — MIT License       https://github.com/anthropics/anthropic-sdk-python
+  openai          — Apache 2.0        https://github.com/openai/openai-python
+  pytest          — MIT License       https://github.com/pytest-dev/pytest
+  ruff            — MIT License       https://github.com/astral-sh/ruff
+  mypy            — MIT License       https://github.com/python/mypy
+  hypothesis      — Mozilla Public 2  https://github.com/HypothesisWorks/hypothesis
+
+All dependency licenses are reproduced in their respective packages.

@@ -1,0 +1,202 @@
+# HAchilles Quality Gate Workflow
+#
+# PR마다 하네스 품질을 자동으로 측정하고, 점수를 PR 코멘트로 게시합니다.
+# Harness 플러그인으로 팀을 생성한 후 품질 기준을 지속적으로 유지하기 위한 게이트입니다.
+#
+# 트리거: PR 생성/업데이트
+# 실패 조건: HAchilles 점수 60점 미만 (B등급 미달)
+# 커스터마이징: min-score 값을 조정하여 기준 변경 가능
+
+name: HAchilles Quality Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - ".claude/**"
+      - "src/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+  push:
+    branches: [main]
+    paths:
+      - ".claude/**"
+      - "src/**"
+      - "AGENTS.md"
+
+permissions:
+  contents: read
+  pull-requests: write   # PR 코멘트 게시에 필요
+
+jobs:
+  hachilles-check:
+    name: HAchilles Quality Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # git 이력 필요 (CE-04 최신성 측정)
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install HAchilles
+        run: pip install hachilles
+
+      - name: Run HAchilles Scan
+        id: scan
+        run: |
+          hachilles scan . --json > hachilles-result.json
+          echo "score=$(jq -r '.total' hachilles-result.json)" >> $GITHUB_OUTPUT
+          echo "grade=$(jq -r '.grade' hachilles-result.json)" >> $GITHUB_OUTPUT
+          echo "ce=$(jq -r '.pillars.context.score' hachilles-result.json)" >> $GITHUB_OUTPUT
+          echo "ac=$(jq -r '.pillars.constraint.score' hachilles-result.json)" >> $GITHUB_OUTPUT
+          echo "em=$(jq -r '.pillars.entropy.score' hachilles-result.json)" >> $GITHUB_OUTPUT
+
+      - name: Generate Report Comment
+        id: report
+        if: github.event_name == 'pull_request'
+        run: |
+          SCORE=${{ steps.scan.outputs.score }}
+          GRADE=${{ steps.scan.outputs.grade }}
+          CE=${{ steps.scan.outputs.ce }}
+          AC=${{ steps.scan.outputs.ac }}
+          EM=${{ steps.scan.outputs.em }}
+
+          # 등급별 이모지
+          if [ "$SCORE" -ge 90 ]; then EMOJI="🏆"; STATUS="S등급 — 하네스 엔지니어링 모범 사례"
+          elif [ "$SCORE" -ge 75 ]; then EMOJI="✅"; STATUS="A등급 — 견고한 하네스 구조"
+          elif [ "$SCORE" -ge 60 ]; then EMOJI="🔶"; STATUS="B등급 — 기본 하네스, 일부 개선 필요"
+          elif [ "$SCORE" -ge 40 ]; then EMOJI="⚠️"; STATUS="C등급 — 위험 수준, 즉각 조치 필요"
+          else EMOJI="🚨"; STATUS="D등급 — 위기 수준, 전면 재설계 검토"
+          fi
+
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## $EMOJI HAchilles Quality Report
+
+          | 총점 | 등급 | 상태 |
+          |------|------|------|
+          | **${SCORE}점** | **${GRADE}** | ${STATUS} |
+
+          ### 3대 기둥 점수
+
+          | 기둥 | 점수 | 만점 |
+          |------|------|------|
+          | CE (컨텍스트 엔지니어링) | ${CE} | 40 |
+          | AC (아키텍처 제약 설계) | ${AC} | 35 |
+          | EM (엔트로피 관리) | ${EM} | 25 |
+
+          [상세 기준 보기](https://github.com/${{ github.repository }}/blob/main/docs/whitepaper.md)
+          EOF
+
+          # PR 코멘트용 본문 생성
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "## $EMOJI HAchilles Quality Gate" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "| 총점 | 등급 | CE | AC | EM |" >> $GITHUB_OUTPUT
+          echo "|------|------|----|----|-----|" >> $GITHUB_OUTPUT
+          echo "| **${SCORE}/100** | **${GRADE}** | ${CE}/40 | ${AC}/35 | ${EM}/25 |" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "> ${STATUS}" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "[상세 진단 기준](https://github.com/${{ github.repository }}/blob/main/docs/whitepaper.md) | [HAchilles Standards](https://github.com/${{ github.repository }}/blob/main/STANDARDS.md)" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post PR Comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `${{ steps.report.outputs.body }}`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            // 기존 HAchilles 코멘트가 있으면 업데이트, 없으면 새로 게시
+            const existing = comments.find(c =>
+              c.user.login === 'github-actions[bot]' &&
+              c.body.includes('HAchilles Quality Gate')
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Quality Gate Decision
+        run: |
+          SCORE=${{ steps.scan.outputs.score }}
+          GRADE=${{ steps.scan.outputs.grade }}
+          MIN_SCORE=60
+
+          echo "HAchilles Score: ${SCORE}점 (${GRADE}등급)"
+          echo "최소 기준: ${MIN_SCORE}점 (B등급 이상)"
+
+          if [ "$SCORE" -lt "$MIN_SCORE" ]; then
+            echo ""
+            echo "❌ HAchilles 품질 기준 미달"
+            echo "   현재: ${SCORE}점 → 필요: ${MIN_SCORE}점 이상"
+            echo ""
+            echo "개선 방법:"
+            echo "  1. hachilles scan . 로 로컬에서 상세 진단 확인"
+            echo "  2. docs/whitepaper.md 에서 각 항목 기준 확인"
+            echo "  3. AGENTS.md 역할 정의 보완 (CE-01, CE-03 항목)"
+            exit 1
+          else
+            echo ""
+            echo "✅ HAchilles 품질 기준 통과 (${SCORE}점 ${GRADE}등급)"
+          fi
+
+  # 메인 브랜치 푸시 시 자가 진단 배지 업데이트 (선택)
+  update-badge:
+    name: Update HAchilles Badge
+    runs-on: ubuntu-latest
+    needs: hachilles-check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install hachilles
+
+      - name: Run self-diagnosis
+        run: |
+          hachilles scan . --json > self-result.json
+          SCORE=$(jq -r '.total_score' self-result.json)
+          GRADE=$(jq -r '.grade' self-result.json)
+          echo "Self-diagnosis: ${SCORE}점 ${GRADE}등급"
+          echo "SCORE=${SCORE}" >> $GITHUB_ENV
+          echo "GRADE=${GRADE}" >> $GITHUB_ENV
+
+      - name: Update claude-progress.txt
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          echo "${DATE}: 자가 진단 ${SCORE}점 ${GRADE}등급 (CI 자동 기록)" >> claude-progress.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add claude-progress.txt
+          git diff --staged --quiet || git commit -m "chore: 자가 진단 점수 업데이트 ${SCORE}점 ${GRADE}등급 [skip ci]"
+          git push

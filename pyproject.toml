@@ -1,0 +1,122 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hachilles"
+version = "3.0.0"
+description = "The definitive standard for AI agent harness quality — 0–100 quantitative diagnostics (CE·AC·EM). Official tool by the author of 'Practical Harness Engineering'. Build with Harness, measure with HAchilles."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Park Sung Hoon (박성훈)", email = "suhopark1@gmail.com" }]
+keywords = [
+    "ai-agent",
+    "harness-engineering",
+    "harness-quality",
+    "harness-diagnostics",
+    "harness-scoring",
+    "llm",
+    "diagnostic",
+    "fastapi",
+    "claude-code",
+    "agent-team",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1",
+    "rich>=13.0",          # 터미널 컬러 출력
+    "jinja2>=3.1",         # HTML 리포트 템플릿
+    "gitpython>=3.1",      # git 히스토리 접근 (staleness 측정)
+    "pathspec>=0.11",      # .gitignore 패턴 파싱
+    # Phase 2: SQLite는 Python 표준 라이브러리 포함 (별도 의존성 없음)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",           # 린터 (hachilles가 자기 자신에게 적용하는 린터)
+    "mypy>=1.8",
+    "pre-commit>=3.6",
+    "hypothesis>=6.0",     # Property-based testing
+    "httpx>=0.27",         # Phase 3: FastAPI TestClient 의존성
+    "anyio>=4.0",          # Phase 3: 비동기 테스트 지원
+]
+llm = [
+    "anthropic>=0.25",     # Phase 2: Anthropic Claude 기반 LLM 평가
+    "openai>=1.0",         # Phase 2: OpenAI GPT 기반 LLM 평가 (선택)
+]
+web = [
+    "fastapi>=0.110",      # Phase 3: REST API 프레임워크
+    "uvicorn[standard]>=0.27",  # Phase 3: ASGI 서버
+]
+all = [
+    "hachilles[dev,llm,web]",
+]
+
+[project.urls]
+Homepage = "https://github.com/suhopark1/hachilles"
+Documentation = "https://github.com/suhopark1/hachilles/blob/main/docs/whitepaper.md"
+"Bug Tracker" = "https://github.com/suhopark1/hachilles/issues"
+Changelog = "https://github.com/suhopark1/hachilles/blob/main/CHANGELOG.md"
+"Harness Integration" = "https://github.com/suhopark1/hachilles/blob/main/docs/harness-integration.md"
+
+[project.scripts]
+hachilles = "hachilles.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hachilles = [
+    "report/templates/*.j2",          # Jinja2 HTML 리포트 템플릿
+    "web/dist/**/*",                   # Phase 3: React 빌드 결과물
+]
+
+# ── Ruff (린터/포매터) ─────────────────────────────────────────
+[tool.ruff]
+src = ["src"]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+]
+ignore = ["E501"]  # line too long — rich 출력 때문에 허용
+
+# ── 의존성 방향 규칙 (단방향 강제) ────────────────────────────
+# models  ← scanner, auditors, score, prescriptions, report, cli
+# scanner ← auditors, score, prescriptions, report, cli
+# auditors ← score, prescriptions, report, cli
+# score   ← prescriptions, report, cli
+# prescriptions ← report, cli
+# report  ← cli
+# cli     (최상위 — 아무것도 import 안 됨)
+#
+# [RULE] 역방향 참조 금지. 위반 시 pre-commit 에서 차단.
+# 현재는 수동 검토 + ADR 001 참조. AC-03 린터 규칙 Phase 1 Sprint 3에 추가 예정.
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
