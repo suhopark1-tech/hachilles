@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hachilles"
-version = "3.0.0"
+version = "3.0.1"
 description = "The definitive standard for AI agent harness quality — 0–100 quantitative diagnostics (CE·AC·EM). Official tool by the author of 'Practical Harness Engineering'. Build with Harness, measure with HAchilles."
 readme = "README.md"
 license = { file = "LICENSE" }
